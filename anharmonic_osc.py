@@ -7,9 +7,11 @@ Created on Mon Jun 26 23:08:26 2023
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 from scipy.integrate import solve_ivp
+from scipy.signal import savgol_filter
 from matplotlib.backends.backend_pdf import PdfPages
 
 pd.set_option('mode.chained_assignment', None)
@@ -42,7 +44,7 @@ def solver(i, j, b, A_force, Omega_cont, omega, a5):
             A_force,
             Omega_cont[j],
             omega,
-            a5[i],
+            a5n[i],
         ),
     )
 
@@ -51,7 +53,7 @@ def solver(i, j, b, A_force, Omega_cont, omega, a5):
     temp = temp.loc[temp["t"] > 60]
     xmax = np.float64(temp["x"].max())
     temp2 = pd.DataFrame(
-        {"a5": a5[i], "Omega": Omega_cont[j], "amplitude": [xmax]}
+        {"a5": a5n[i], "Omega": Omega_cont[j], "amplitude": [xmax]}
     )
     return temp2
 
@@ -70,11 +72,12 @@ dOmega = 0.001  # spacing for driving frequency in continuous case
 
 # Varying the 3rd order term
 a5 = np.linspace(0, 0.9, 10)
+a5n = np.arange(0,1.1,0.1)
 
 # Create pandas dataframe
 df = pd.DataFrame()
 
-for i in range(len(a5)):
+for i in tqdm(range(len(a5)),desc="Discrete Omega",ascii="123456789#"):
     # Solve the differential equation using LSODA method
     sol = solve_ivp(
         f,
@@ -97,7 +100,7 @@ for i in range(len(a5)):
 # Similar code for plotting resonance profile
 df2 = pd.DataFrame()
 Omega_cont = np.arange(0.5, 2.0 + dOmega, dOmega)  # continuous-like Omega
-for i in range(len(a5)):
+for i in tqdm(range(len(a5n)),desc="Continuous Omega",ascii="123456789#"):
     df_temp = Parallel(n_jobs=-1)(
         delayed(solver)(i, j, b, A_force, Omega_cont, omega, a5)
         for j in range(len(Omega_cont))
@@ -204,19 +207,14 @@ plt.suptitle(
 # x = np.arange(0.75, 1.75, 0.01)
 M = []
 plt.subplot(3, 1, 1)
-for i in range(len(a5)):
-    temp = df2.loc[df2["a5"] == a5[i]]
+for i in range(len(a5n)):
+    temp = df2.loc[df2["a5"] == a5n[i]]
     temp.reset_index(inplace=True, drop=True)
     plt.plot(
         temp["Omega"],
         temp["amplitude"],
-        label=r"$a_5$=" + "{:.2f}".format(a5[i]),
+        label=r"$a_5$=" + "{:.2f}".format(a5n[i]),
     )
-
-    idx = temp["amplitude"].idxmax()
-    xp = temp["Omega"].iloc[idx]
-    yp = temp["amplitude"].iloc[idx]
-    plt.scatter(xp, yp)
 
 plt.xlabel(r"Driving frequency ($\Omega$)")
 plt.ylabel("Amplitude")
@@ -225,13 +223,14 @@ plt.grid(True)
 plt.legend()
 
 plt.subplot(3, 1, 2)
-for i in range(len(a5)):
-    temp = df2.loc[df2["a5"] == a5[i]]
+for i in range(len(a5n)):
+    temp = df2.loc[df2["a5"] == a5n[i]]
     temp.is_copy = None
     temp["grad"] = np.gradient(temp["amplitude"], dOmega)
+    
     M.append(temp["grad"].min())
     plt.plot(
-        temp["Omega"], temp["grad"], label=r"$a_5$=" + "{:.2f}".format(a5[i])
+        temp["Omega"], temp["grad"], label=r"$a_5$=" + "{:.2f}".format(a5n[i])
     )
 plt.xlabel(r"Driving frequency ($\Omega$)")
 plt.ylabel("Gradient of Amplitude")
