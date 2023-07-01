@@ -11,7 +11,6 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 from scipy.integrate import solve_ivp
-from scipy.signal import savgol_filter
 from matplotlib.backends.backend_pdf import PdfPages
 
 pd.set_option('mode.chained_assignment', None)
